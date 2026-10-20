@@ -173,7 +173,7 @@ input[type="text"]:focus, textarea:focus, select:focus {
     <div class="header-flex">
       <div class="header-left">
         <div class="logo-box">
-          <img src="chisholm_logo.png" alt="Chisholm Logo" onerror="this.style.display='none'" />
+          <img src="Assets/chisholm_logo.png" alt="Chisholm Logo" onerror="this.style.display='none'" />
         </div>
         <div>
           <h2>English 8: Beginnings in Research, Literature, and Composition</h2>
@@ -181,8 +181,8 @@ input[type="text"]:focus, textarea:focus, select:focus {
         </div>
       </div>
       <div class="stamp-container">
-        <img class="stamp-photo" src="boehm_photo.jpg" alt="Instructor Photo" onerror="this.style.display='none'" />
-        <img class="stamp-svg" src="boehm-stamp.svg" alt="Classroom Stamp" onerror="this.style.display='none'" />
+        <img class="stamp-photo" src="Assets/boehm_photo.jpg" alt="Instructor Photo" onerror="this.style.display='none'" />
+        <img class="stamp-svg" src="Assets/boehm-stamp.svg" alt="Classroom Stamp" onerror="this.style.display='none'" />
       </div>
     </div>
   </div>
@@ -318,6 +318,177 @@ function moveSlide(dir) {
   document.getElementById('next-btn').disabled = currentSlide === totalSlides;
 }
 
+function pdfText(x, y, size, text, bold = false) {
+  const safeText = String(text).replace(/[^\x20-\x7E]/g, '?').replace(/\\/g, '\\\\').replace(/\(/g, '\\(').replace(/\)/g, '\\)');
+  return `BT /${bold ? 'F2' : 'F1'} ${size} Tf ${x} ${y} Td (${safeText}) Tj ET\n`;
+}
+
+function makePdf(pages, width, height) {
+  const objects = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    `<< /Type /Pages /Kids [${pages.map((_, index) => `${3 + index * 2} 0 R`).join(' ')}] /Count ${pages.length} >>`
+  ];
+
+  pages.forEach((content, index) => {
+    const pageObject = 3 + index * 2;
+    const contentObject = pageObject + 1;
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${width} ${height}] /Resources << /Font << /F1 ${3 + pages.length * 2} 0 R /F2 ${4 + pages.length * 2} 0 R >> >> /Contents ${contentObject} 0 R >>`);
+    objects.push(`<< /Length ${content.length} >>\nstream\n${content}endstream`);
+  });
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
+  objects.push('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>');
+
+  let pdf = '%PDF-1.4\n';
+  const offsets = [0];
+  objects.forEach((object, index) => {
+    offsets.push(pdf.length);
+    pdf += `${index + 1} 0 obj\n${object}\nendobj\n`;
+  });
+  const xrefOffset = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  offsets.slice(1).forEach(offset => {
+    pdf += `${String(offset).padStart(10, '0')} 00000 n \n`;
+  });
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+  return new Blob([pdf], { type: 'application/pdf' });
+}
+
+function createPerspectiveMatrixPdf() {
+  const content = [];
+  const text = (x, y, size, value, bold = false) => content.push(pdfText(x, y, size, value, bold));
+  const line = (x1, y1, x2, y2) => content.push(`${x1} ${y1} m ${x2} ${y2} l S\n`);
+  const rect = (x, y, w, h) => content.push(`${x} ${y} ${w} ${h} re S\n`);
+  const columns = [36, 196, 350, 562, 756];
+
+  text(36, 574, 18, 'Alternate Character Perspective Planning Matrix', true);
+  text(36, 554, 10, 'Plan an evidence-based scene rewrite from a character who sees the event differently.');
+  text(36, 526, 10, 'Name: ____________________________________________   Class: ______________   Date: ______________');
+  text(36, 501, 9, 'Directions: Choose one pivotal scene. Record a text detail, infer a motive, then draft an alternate internal voice.');
+
+  const top = 476;
+  const headerBottom = 426;
+  const rowBottoms = [336, 246, 156];
+  columns.forEach(x => line(x, top, x, rowBottoms[2]));
+  line(columns[0], top, columns[4], top);
+  line(columns[0], headerBottom, columns[4], headerBottom);
+  rowBottoms.forEach(y => line(columns[0], y, columns[4], y));
+
+  text(43, 457, 8, 'TEXT EVENT +', true);
+  text(43, 445, 8, 'PAGE / QUOTE', true);
+  text(203, 457, 8, 'ALTERNATE', true);
+  text(203, 445, 8, 'CHARACTER + MOTIVE', true);
+  text(357, 457, 8, 'INTERNAL MONOLOGUE', true);
+  text(357, 445, 8, 'VOICE, FEELING, SENSORY DETAIL', true);
+  text(569, 457, 8, 'CANON CHECK', true);
+  text(569, 445, 8, 'WHAT MUST STAY TRUE?', true);
+
+  [0, 1, 2].forEach(row => {
+    const topY = headerBottom - row * 90;
+    const bottomY = rowBottoms[row];
+    text(43, topY - 17, 8, `Scene ${row + 1}:`);
+    text(203, topY - 17, 8, 'What do they want or fear?');
+    text(357, topY - 17, 8, 'What might they think but not say?');
+    text(569, topY - 17, 8, 'Facts / dialogue to preserve:');
+    for (let y = topY - 39; y > bottomY + 10; y -= 22) {
+      line(43, y, columns[1] - 8, y);
+      line(203, y, columns[2] - 8, y);
+      line(357, y, columns[3] - 8, y);
+      line(569, y, columns[4] - 8, y);
+    }
+  });
+
+  text(36, 130, 9, 'Synthesis: What new idea about the character or theme did this perspective reveal?');
+  line(36, 110, 756, 110);
+  line(36, 88, 756, 88);
+  text(36, 55, 8, 'Textual fidelity reminder: Add a plausible interpretation; do not contradict established events or details.');
+  return makePdf([content.join('')], 792, 612);
+}
+
+function createVoiceRubricPdf() {
+  const content = [];
+  const text = (x, y, size, value, bold = false) => content.push(pdfText(x, y, size, value, bold));
+  const line = (x1, y1, x2, y2) => content.push(`${x1} ${y1} m ${x2} ${y2} l S\n`);
+  const columns = [36, 136, 246, 356, 466, 576];
+
+  text(36, 754, 17, 'Narrative Voice & Textual Fidelity Rubric', true);
+  text(36, 733, 9, 'Use this rubric to revise an alternate-perspective response. Select one level per criterion.');
+  text(36, 710, 9, 'Writer: ______________________________________________   Reviewer: __________________________');
+
+  const top = 686;
+  const headerBottom = 646;
+  const rowHeight = 112;
+  columns.forEach(x => line(x, top, x, headerBottom - rowHeight * 4));
+  line(columns[0], top, columns[5], top);
+  line(columns[0], headerBottom, columns[5], headerBottom);
+  text(42, 670, 8, 'CRITERION', true);
+  text(142, 670, 8, 'LEVEL 1 - BEGINNING', true);
+  text(252, 670, 8, 'LEVEL 2 - DEVELOPING', true);
+  text(362, 670, 8, 'LEVEL 3 - PROFICIENT', true);
+  text(472, 670, 8, 'LEVEL 4 - ADVANCED', true);
+
+  const rubricRows = [
+    {
+      name: ['Voice &', 'diction'],
+      levels: [
+        ['Voice sounds like', 'the writer; few', 'character-specific', 'word choices.'],
+        ['Some fitting words,', 'but voice or sentence', 'style shifts back to', 'the writer.'],
+        ['Diction and sentence', 'style fit the character', 'and the scene.'],
+        ['Distinctive, consistent', 'voice uses precise diction', 'and purposeful rhythm.']
+      ]
+    },
+    {
+      name: ['Subtext &', 'motivation'],
+      levels: [
+        ['Thoughts repeat events;', 'motive is missing or', 'not supported.'],
+        ['A motive is named,', 'but its cause or emotion', 'needs development.'],
+        ['Believable motive and', 'unspoken emotion are', 'clearly developed.'],
+        ['Nuanced subtext reveals', 'conflicting motives and', 'deepens interpretation.']
+      ]
+    },
+    {
+      name: ['Textual', 'fidelity'],
+      levels: [
+        ['Response conflicts with', 'important facts or scene', 'events.'],
+        ['Most events remain, but', 'one detail or voice choice', 'breaks the story world.'],
+        ['Scene facts and timeline', 'are preserved; inferences', 'fit the text.'],
+        ['Insightful new perspective', 'is fully grounded in details', 'without changing canon.']
+      ]
+    },
+    {
+      name: ['Craft &', 'clarity'],
+      levels: [
+        ['Ideas are difficult to', 'follow; few sensory or', 'specific details.'],
+        ['Some clear moments;', 'organization or detail', 'is uneven.'],
+        ['Focused sequence uses', 'specific details and clear', 'internal reflection.'],
+        ['Vivid, controlled writing', 'uses detail and structure', 'to shape reader response.']
+      ]
+    }
+  ];
+
+  rubricRows.forEach((row, rowIndex) => {
+    const topY = headerBottom - rowIndex * rowHeight;
+    const bottomY = topY - rowHeight;
+    line(columns[0], bottomY, columns[5], bottomY);
+    row.name.forEach((part, index) => text(42, topY - 22 - index * 12, 9, part, true));
+    row.levels.forEach((level, levelIndex) => {
+      level.forEach((part, index) => text(columns[levelIndex + 1] + 6, topY - 18 - index * 13, 7, part));
+    });
+  });
+
+  text(36, 178, 10, 'Revision notes: Name one strength and one specific next step.');
+  line(36, 157, 576, 157);
+  line(36, 136, 576, 136);
+  text(36, 103, 9, 'Self-check: Which text detail supports your character interpretation?');
+  line(36, 82, 576, 82);
+  text(36, 48, 8, 'Standards focus: Minnesota ELA 8.1.3.3 and 8.2.3.3');
+  return makePdf([content.join('')], 612, 792);
+}
+
+const builtInPdfGenerators = {
+  perspectiveMatrix: createPerspectiveMatrixPdf,
+  voiceRubric: createVoiceRubricPdf
+};
+
 function renderResources(resources) {
   const container = document.getElementById('resource-list');
   container.innerHTML = '';
@@ -326,6 +497,32 @@ function renderResources(resources) {
   resourceList.forEach(res => {
     const card = document.createElement('div');
     card.className = 'resource-card';
+    if (res.pdfDocument && builtInPdfGenerators[res.pdfDocument]) {
+      const details = document.createElement('div');
+      const title = document.createElement('strong');
+      const description = document.createElement('small');
+      const openLink = document.createElement('a');
+      const downloadLink = document.createElement('a');
+      const pdfUrl = URL.createObjectURL(builtInPdfGenerators[res.pdfDocument]());
+      const filename = res.file || `${res.pdfDocument}.pdf`;
+      title.textContent = res.label || filename;
+      description.className = 'muted';
+      description.textContent = res.description || 'Embedded PDF worksheet';
+      openLink.href = pdfUrl;
+      openLink.target = '_blank';
+      openLink.rel = 'noopener noreferrer';
+      openLink.className = 'ctrl-btn';
+      openLink.textContent = 'Open PDF';
+      downloadLink.href = pdfUrl;
+      downloadLink.download = filename;
+      downloadLink.className = 'ctrl-btn';
+      downloadLink.textContent = 'Download PDF';
+      details.append(title, document.createElement('br'), description);
+      card.append(details, openLink, downloadLink);
+      container.appendChild(card);
+      return;
+    }
+
     const resourceUrl = res.file || res.link || res.url || '#';
     card.innerHTML = `
       <div>
@@ -427,11 +624,13 @@ window.addEventListener('DOMContentLoaded', () => initLesson({
     {
       "label": "Alternate Character Perspective Planning Matrix PDF",
       "file": "Alternate_Character_Perspective_Matrix.pdf",
+      "pdfDocument": "perspectiveMatrix",
       "description": "Graphic organizer for logging original text quotes alongside alternate character internal monologues."
     },
     {
       "label": "Narrative Voice & Textual Fidelity Rubric PDF",
       "file": "Narrative_Voice_Fidelity_Rubric.pdf",
+      "pdfDocument": "voiceRubric",
       "description": "Evaluation criteria for assessing diction, syntax, subtext depth, and adherence to novel canon."
     }
   ],
